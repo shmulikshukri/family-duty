@@ -23,12 +23,18 @@ export function useDuty() {
     return unsub;
   }, []);
 
-  // Listen to users collection ordered by turnOrder
+  // Listen to users collection
   useEffect(() => {
     const unsub = onSnapshot(
-      query(collection(db, "users"), orderBy("turnOrder", "asc")),
+      collection(db, "users"),
       (snap) => {
-        setUsers(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
+        const all = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+        all.sort((a, b) => {
+          if (a.role === "pending" && b.role !== "pending") return 1;
+          if (a.role !== "pending" && b.role === "pending") return -1;
+          return (a.turnOrder ?? 99) - (b.turnOrder ?? 99);
+        });
+        setUsers(all);
         setLoading(false);
       }
     );
@@ -118,9 +124,19 @@ export function useDuty() {
     }
   }
 
-  // Admin: set user role
+  // Admin: approve pending user
   async function setUserRole(uid, role, turnOrder) {
-    await updateDoc(doc(db, "users", uid), { role, turnOrder: turnOrder ?? 99 });
+    const members = users.filter(u => u.role === "member" || u.role === "admin");
+    const order = turnOrder ?? members.length;
+    await updateDoc(doc(db, "users", uid), { role, turnOrder: order });
+    // If no current turn set yet, set this user as first
+    if (!settings?.currentTurnUid && role === "member") {
+      await updateDoc(doc(db, "app", "settings"), { currentTurnUid: uid }).catch(async () => {
+        const { setDoc } = await import("firebase/firestore");
+        const { db: firedb } = await import("../firebase");
+        // settings doc doesn't exist yet, will be created on first markDone
+      });
+    }
   }
 
   // Admin: reorder turn
