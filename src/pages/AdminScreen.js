@@ -32,22 +32,22 @@ export default function AdminScreen() {
     setTimeout(() => setToast(""), 2800);
   }
 
-  const pendingUsers = users.filter(u => u.role === "pending");
-  const activeUsers = users.filter(u => u.role === "member" || u.role === "admin");
+  // Show all users regardless of loading state
+  const allUsers = users || [];
+  const pendingUsers = allUsers.filter(u => u.role === "pending");
+  const activeUsers = allUsers.filter(u => u.role === "member" || u.role === "admin");
 
-  async function handleApprove(uid, order) {
-    await setUserRole(uid, "member", order);
-    showToast("משתמש אושר ✓");
+  async function handleApprove(uid, name) {
+    await setUserRole(uid, "member", activeUsers.length + 1);
+    showToast("✓ " + name + " אושר!");
   }
 
   async function handleSetDate() {
     if (!dutyDate) { showToast("בחר תאריך"); return; }
     await setNextDutyDate(dutyDate);
-    showToast("📅 תאריך נשמר והתראה נשלחה");
+    showToast("📅 תאריך נשמר");
     setDutyDate("");
   }
-
-  if (loading) return <div style={{ padding: "2rem", textAlign: "center", color: "#888", direction: "rtl" }}>טוען...</div>;
 
   return (
     <div style={{ maxWidth: 480, margin: "0 auto", padding: "1rem", direction: "rtl", fontFamily: "system-ui, sans-serif", position: "relative" }}>
@@ -83,7 +83,12 @@ export default function AdminScreen() {
 
       {tab === "users" && (
         <>
-          {/* Pending approvals */}
+          {/* Debug info */}
+          <div style={{ fontSize: 11, color: "#aaa", marginBottom: 8 }}>
+            סה"כ משתמשים: {allUsers.length} | ממתינים: {pendingUsers.length} | פעילים: {activeUsers.length}
+          </div>
+
+          {/* Pending */}
           {pendingUsers.length > 0 && (
             <>
               <div style={{ fontSize: 11, fontWeight: 500, color: "#BA7517", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: "0.5rem" }}>
@@ -97,7 +102,7 @@ export default function AdminScreen() {
                       <div style={{ fontSize: 14, fontWeight: 500 }}>{u.name}</div>
                       <div style={{ fontSize: 12, color: "#888" }}>{u.email}</div>
                     </div>
-                    <button onClick={() => handleApprove(u.id, activeUsers.length + 1)}
+                    <button onClick={() => handleApprove(u.id, u.name)}
                       style={{ fontSize: 12, padding: "4px 12px", borderRadius: 8, border: "0.5px solid #9FE1CB", background: "#E1F5EE", color: "#085041", cursor: "pointer" }}>
                       אשר
                     </button>
@@ -107,50 +112,50 @@ export default function AdminScreen() {
             </>
           )}
 
-          {/* Active users */}
-          <div style={{ fontSize: 11, fontWeight: 500, color: "#888", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: "0.5rem" }}>
-            חברי משפחה פעילים
-          </div>
-          <div style={{ background: "#f5f5f3", borderRadius: 12, padding: "0.75rem" }}>
-            {activeUsers.map((u, i) => {
-              const isCurrent = u.id === settings?.currentTurnUid;
-              return (
-                <div key={u.id} style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 0", borderBottom: i < activeUsers.length - 1 ? "0.5px solid #e0e0e0" : "none" }}>
-                  <Avatar name={u.name} photo={u.photo} index={i} />
-                  <div style={{ flex: 1 }}>
-                    <div style={{ fontSize: 14, color: "#111" }}>
-                      {u.name}{isCurrent ? " ← עכשיו" : ""}
+          {pendingUsers.length === 0 && activeUsers.length === 0 && (
+            <div style={{ textAlign: "center", color: "#aaa", fontSize: 13, padding: "2rem" }}>
+              אין משתמשים עדיין
+            </div>
+          )}
+
+          {/* Active */}
+          {activeUsers.length > 0 && (
+            <>
+              <div style={{ fontSize: 11, fontWeight: 500, color: "#888", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: "0.5rem" }}>
+                חברי משפחה פעילים
+              </div>
+              <div style={{ background: "#f5f5f3", borderRadius: 12, padding: "0.75rem" }}>
+                {activeUsers.map((u, i) => {
+                  const isCurrent = u.id === settings?.currentTurnUid;
+                  return (
+                    <div key={u.id} style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 0", borderBottom: i < activeUsers.length - 1 ? "0.5px solid #e0e0e0" : "none" }}>
+                      <Avatar name={u.name} photo={u.photo} index={i} />
+                      <div style={{ flex: 1 }}>
+                        <div style={{ fontSize: 14, color: "#111" }}>{u.name}{isCurrent ? " ← עכשיו" : ""}</div>
+                        <div style={{ fontSize: 12, color: "#888" }}>{u.email}</div>
+                      </div>
+                      <div style={{ display: "flex", gap: 4, flexWrap: "wrap", justifyContent: "flex-end" }}>
+                        {u.canSkip ? (
+                          <>
+                            <span style={{ fontSize: 11, padding: "2px 8px", borderRadius: 99, background: "#CECBF6", color: "#3C3489", fontWeight: 500 }}>דילוג</span>
+                            <button onClick={() => { revokeSkip(u.id); showToast("בוטל"); }}
+                              style={{ fontSize: 12, padding: "3px 8px", borderRadius: 8, border: "0.5px solid #F09595", background: "#FCEBEB", color: "#A32D2D", cursor: "pointer" }}>בטל</button>
+                          </>
+                        ) : (
+                          <button onClick={() => { grantSkip(u.id); showToast("ניתן דילוג ל" + u.name); }}
+                            style={{ fontSize: 12, padding: "3px 8px", borderRadius: 8, border: "0.5px solid #FAC775", background: "#FAEEDA", color: "#633806", cursor: "pointer" }}>תן דילוג</button>
+                        )}
+                        <button onClick={() => { markDone(u.id); showToast("בוצע עבור " + u.name); }}
+                          style={{ fontSize: 12, padding: "3px 8px", borderRadius: 8, border: "0.5px solid #9FE1CB", background: "#E1F5EE", color: "#085041", cursor: "pointer" }}>בוצע</button>
+                        <button onClick={() => { setTurn(u.id); showToast("תור הועבר ל" + u.name); }}
+                          style={{ fontSize: 12, padding: "3px 8px", borderRadius: 8, border: "0.5px solid #ddd", background: "white", color: "#555", cursor: "pointer" }}>קבע תור</button>
+                      </div>
                     </div>
-                    <div style={{ fontSize: 12, color: "#888" }}>{u.email}</div>
-                  </div>
-                  <div style={{ display: "flex", gap: 4, flexWrap: "wrap", justifyContent: "flex-end" }}>
-                    {u.canSkip ? (
-                      <>
-                        <span style={{ fontSize: 11, padding: "2px 8px", borderRadius: 99, background: "#CECBF6", color: "#3C3489", fontWeight: 500 }}>דילוג</span>
-                        <button onClick={() => { revokeSkip(u.id); showToast("הרשאת דילוג בוטלה"); }}
-                          style={{ fontSize: 12, padding: "3px 8px", borderRadius: 8, border: "0.5px solid #F09595", background: "#FCEBEB", color: "#A32D2D", cursor: "pointer" }}>
-                          בטל
-                        </button>
-                      </>
-                    ) : (
-                      <button onClick={() => { grantSkip(u.id); showToast(`הרשאת דילוג ניתנה ל${u.name}`); }}
-                        style={{ fontSize: 12, padding: "3px 8px", borderRadius: 8, border: "0.5px solid #FAC775", background: "#FAEEDA", color: "#633806", cursor: "pointer" }}>
-                        תן דילוג
-                      </button>
-                    )}
-                    <button onClick={() => { markDone(u.id); showToast(`סומן בוצע עבור ${u.name}`); }}
-                      style={{ fontSize: 12, padding: "3px 8px", borderRadius: 8, border: "0.5px solid #9FE1CB", background: "#E1F5EE", color: "#085041", cursor: "pointer" }}>
-                      בוצע
-                    </button>
-                    <button onClick={() => { setTurn(u.id); showToast(`התור הועבר ל${u.name}`); }}
-                      style={{ fontSize: 12, padding: "3px 8px", borderRadius: 8, border: "0.5px solid #ddd", background: "white", color: "#555", cursor: "pointer" }}>
-                      קבע תור
-                    </button>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
+                  );
+                })}
+              </div>
+            </>
+          )}
         </>
       )}
 
@@ -158,27 +163,19 @@ export default function AdminScreen() {
         <div style={{ background: "#f5f5f3", borderRadius: 12, padding: "1rem" }}>
           <div style={{ fontSize: 14, fontWeight: 500, marginBottom: 12 }}>קבע תאריך לתורנות הבאה</div>
           <div style={{ fontSize: 13, color: "#666", marginBottom: 8 }}>
-            התורנות הנוכחית: <strong>{activeUsers.find(u => u.id === settings?.currentTurnUid)?.name || "—"}</strong>
+            תורנות נוכחית: <strong>{activeUsers.find(u => u.id === settings?.currentTurnUid)?.name || "—"}</strong>
           </div>
           {settings?.nextDutyDate && (
             <div style={{ fontSize: 13, color: "#0F6E56", marginBottom: 12, background: "#E1F5EE", padding: "8px 12px", borderRadius: 8 }}>
-              📅 תאריך נוכחי: {new Date(settings.nextDutyDate).toLocaleString("he-IL")}
+              📅 {new Date(settings.nextDutyDate).toLocaleString("he-IL")}
             </div>
           )}
           <label style={{ fontSize: 13, color: "#666" }}>
             תאריך ושעה
-            <input
-              type="datetime-local"
-              value={dutyDate}
-              onChange={e => setDutyDate(e.target.value)}
-              style={{ display: "block", width: "100%", marginTop: 4, padding: "8px 10px", borderRadius: 8, border: "0.5px solid #ddd", background: "white", fontSize: 14, fontFamily: "inherit" }}
-            />
+            <input type="datetime-local" value={dutyDate} onChange={e => setDutyDate(e.target.value)}
+              style={{ display: "block", width: "100%", marginTop: 4, padding: "8px 10px", borderRadius: 8, border: "0.5px solid #ddd", background: "white", fontSize: 14, fontFamily: "inherit" }} />
           </label>
-          <button onClick={handleSetDate} style={{
-            marginTop: 12, width: "100%", padding: "11px", borderRadius: 8,
-            background: "#1D9E75", color: "white", border: "none",
-            fontSize: 14, fontWeight: 500, cursor: "pointer", fontFamily: "inherit"
-          }}>
+          <button onClick={handleSetDate} style={{ marginTop: 12, width: "100%", padding: "11px", borderRadius: 8, background: "#1D9E75", color: "white", border: "none", fontSize: 14, fontWeight: 500, cursor: "pointer", fontFamily: "inherit" }}>
             שמור ושלח התראה
           </button>
         </div>
@@ -186,32 +183,20 @@ export default function AdminScreen() {
 
       {tab === "history" && (
         <>
-          <div style={{ fontSize: 11, fontWeight: 500, color: "#888", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: "0.5rem" }}>
-            פעילות אחרונה
-          </div>
+          <div style={{ fontSize: 11, fontWeight: 500, color: "#888", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: "0.5rem" }}>פעילות אחרונה</div>
           {history.length === 0 && <div style={{ textAlign: "center", color: "#aaa", fontSize: 13, padding: "2rem" }}>אין היסטוריה עדיין</div>}
           <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
             {history.map((h, i) => {
               const uIdx = activeUsers.findIndex(x => x.id === h.userId);
               return (
                 <div key={h.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 12px", background: "white", border: "0.5px solid #e0e0e0", borderRadius: 8 }}>
-                  <div style={{
-                    width: 22, height: 22, borderRadius: "50%", flexShrink: 0,
-                    background: h.type === "skip" ? "#FAEEDA" : "#E1F5EE",
-                    border: `0.5px solid ${h.type === "skip" ? "#FAC775" : "#9FE1CB"}`,
-                    display: "flex", alignItems: "center", justifyContent: "center",
-                    fontSize: 11, color: h.type === "skip" ? "#633806" : "#085041"
-                  }}>
+                  <div style={{ width: 22, height: 22, borderRadius: "50%", flexShrink: 0, background: h.type === "skip" ? "#FAEEDA" : "#E1F5EE", border: `0.5px solid ${h.type === "skip" ? "#FAC775" : "#9FE1CB"}`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, color: h.type === "skip" ? "#633806" : "#085041" }}>
                     {h.type === "skip" ? "↷" : "✓"}
                   </div>
                   <Avatar name={h.userName} photo={h.userPhoto} index={uIdx >= 0 ? uIdx : i} size={28} />
                   <div style={{ flex: 1 }}>
-                    <div style={{ fontSize: 14, fontWeight: 500, color: "#111" }}>
-                      {h.userName} — {h.type === "skip" ? "דילג" : "ביצע תורנות"}
-                    </div>
-                    <div style={{ fontSize: 12, color: "#888" }}>
-                      {h.createdAt?.toDate?.().toLocaleString("he-IL") || ""}
-                    </div>
+                    <div style={{ fontSize: 14, fontWeight: 500, color: "#111" }}>{h.userName} — {h.type === "skip" ? "דילג" : "ביצע תורנות"}</div>
+                    <div style={{ fontSize: 12, color: "#888" }}>{h.createdAt?.toDate?.().toLocaleString("he-IL") || ""}</div>
                   </div>
                 </div>
               );
